@@ -9,9 +9,7 @@
 
 > **Transform any RSS feed into fully optimized WordPress posts automatically - with AI-generated content, relevant images, and YouTube videos!**
 
-<p align="center">
-  <img src="assets/banner.png" alt="AI RSS SEO Generator Banner" width="800">
-</p>
+
 
 ## 🚀 Overview
 

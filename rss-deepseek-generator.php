@@ -2,8 +2,8 @@
 /**
  * Plugin Name: 6arshid AI RSS SEO Generator
  * Plugin URI: https://github.com/6arshid/AI-RSS-SEO-Generator---Auto-Post-with-DeepSeek-YouTube
- * Description: Automatically fetch RSS feeds, generate SEO content with DeepSeek AI - PROPER DUPLICATE DETECTION by RSS Item ID
- * Version: 26.0.0
+ * Description: Automatically fetch RSS feeds, generate SEO content with DeepSeek AI - ULTIMATE TAG FIX
+ * Version: 30.0.0
  * Author: 6arshid
  * Author URI: https://github.com/6arshid/
  * License: GPL v2 or later
@@ -17,10 +17,12 @@ class RSS_Generator_6arshid {
     
     private $options;
     private $log_file;
+    private $admin_email;
     
     public function __construct() {
         $this->options = get_option('rss_6arshid_options', array());
         $this->log_file = WP_CONTENT_DIR . '/rss-6arshid.log';
+        $this->admin_email = get_option('admin_email');
         
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_init', array($this, 'register_settings'));
@@ -32,6 +34,7 @@ class RSS_Generator_6arshid {
         add_action('wp_ajax_rss_cron_run', array($this, 'ajax_cron_run'));
         add_action('wp_ajax_rss_view_log', array($this, 'ajax_view_log'));
         add_action('wp_ajax_rss_fix_duplicates', array($this, 'ajax_fix_duplicates'));
+        add_action('wp_ajax_rss_test_tags', array($this, 'ajax_test_tags'));
         
         // Cron URL
         add_action('init', array($this, 'add_cron_rewrite_rule'));
@@ -47,6 +50,25 @@ class RSS_Generator_6arshid {
     private function log($message) {
         $timestamp = date('Y-m-d H:i:s');
         file_put_contents($this->log_file, "[$timestamp] $message\n", FILE_APPEND);
+    }
+    
+    /**
+     * Send error email to admin
+     */
+    private function send_error_email($error_type, $details) {
+        $subject = "⚠️ RSS Generator Error: " . $error_type;
+        $message = "Hello Admin,\n\n";
+        $message .= "An error occurred in your RSS Generator plugin:\n\n";
+        $message .= "Error Type: " . $error_type . "\n";
+        $message .= "Time: " . date('Y-m-d H:i:s') . "\n";
+        $message .= "Details: " . $details . "\n\n";
+        $message .= "Please check your API keys and settings.\n";
+        $message .= "Log file: " . $this->log_file . "\n\n";
+        $message .= "Best regards,\n";
+        $message .= "6arshid RSS Generator";
+        
+        wp_mail($this->admin_email, $subject, $message);
+        $this->log("Error email sent: " . $error_type);
     }
     
     public function activate() {
@@ -110,7 +132,7 @@ class RSS_Generator_6arshid {
         echo "========================\n";
         echo "Execution time: " . date('Y-m-d H:i:s') . "\n";
         echo "Posts created: $count\n";
-        echo "Each post: 2 images + 1 YouTube video\n";
+        echo "Each post: 2 images + 1 YouTube video + CTR tags\n";
         echo "========================\n";
         echo "GitHub: https://github.com/6arshid/\n";
         exit;
@@ -145,20 +167,25 @@ class RSS_Generator_6arshid {
         
         // Default RSS feed suggestion
         $default_rss = "https://feeds.bbci.co.uk/news/rss.xml\nhttps://rss.cnn.com/rss/edition.rss\nhttps://politiken.dk/kultur/rss";
+        
+        // Default tag prompt
+        $default_tag_prompt = "Based on the title '{title}', generate 8-12 high-CTR (Click Through Rate) tags. Each tag should be a keyword or short phrase that people would search for. Format the tags as comma-separated list. Example: 'stranger things season 5, netflix series release date, stranger things plot, upside down explained, vecna backstory, eleven powers, dustin henderson, millie bobby brown, stranger things theories, when is stranger things coming out'";
         ?>
         <div class="wrap">
-            <h1>🚀 6arshid AI RSS SEO Generator (Proper Duplicate Detection)</h1>
+            <h1>🚀 6arshid AI RSS SEO Generator (ULTIMATE TAG FIX)</h1>
             
             <div class="notice notice-info">
                 <p><strong>⏰ Internal Cron:</strong> Next run: <?php echo $next_time; ?></p>
                 <p><strong>🔗 Cron URL:</strong> <input type="text" value="<?php echo esc_url($cron_url); ?>" class="regular-text" readonly onclick="this.select()"></p>
                 <p><strong>📁 Log file:</strong> <?php echo $this->log_file; ?></p>
-                <p><strong>🔄 Duplicate Detection:</strong> Uses REAL RSS Item ID - no more false duplicates!</p>
+                <p><strong>📧 Admin Email:</strong> <?php echo $this->admin_email; ?></p>
+                <p><strong>🏷️ CTR Tags:</strong> 🔥 ULTIMATE FIX - Using multiple methods</p>
             </div>
             
             <div class="notice notice-warning">
-                <p><strong>⚠️ If you see duplicate errors:</strong> Click the button to fix the database</p>
-                <p><button id="rss-fix-duplicates" class="button button-primary">🔧 FIX DUPLICATE DETECTION</button></p>
+                <p><strong>⚠️ If tags are still not showing:</strong> Click the button to test tag creation</p>
+                <p><button id="rss-test-tags" class="button button-primary">🏷️ TEST TAG CREATION</button></p>
+                <p><button id="rss-fix-duplicates" class="button button-secondary">🔧 FIX DUPLICATE DETECTION</button></p>
             </div>
             
             <form method="post" action="options.php">
@@ -200,6 +227,7 @@ class RSS_Generator_6arshid {
         .generate-btn:hover { background:#005a87; }
         .duplicate-warning { color: #856404; background-color: #fff3cd; padding: 10px; border-left: 4px solid #ffeeba; margin: 10px 0; }
         .item-id { color: #666; font-size: 11px; font-family: monospace; }
+        .tags-preview { color: #2271b1; font-size: 12px; margin-top: 5px; }
         </style>
         
         <script>
@@ -215,11 +243,32 @@ class RSS_Generator_6arshid {
                     data: { action: 'rss_test' },
                     success: function(res) {
                         if (res.success) {
-                            alert('✅ DeepSeek: ' + res.data.deepseek + '\n✅ Pexels: ' + res.data.pexels + '\n✅ YouTube: ' + res.data.youtube);
+                            alert('✅ DeepSeek: ' + res.data.deepseek + '\n✅ Pexels: ' + res.data.pexels + '\n✅ YouTube: ' + res.data.youtube + '\n✅ Tags: Active');
                         }
                     },
                     complete: function() {
                         btn.prop('disabled', false).text('🔌 Test Connection');
+                    }
+                });
+            });
+            
+            $('#rss-test-tags').click(function() {
+                var btn = $(this);
+                btn.prop('disabled', true).text('Testing Tags...');
+                
+                $.ajax({
+                    url: ajaxurl,
+                    type: 'POST',
+                    data: { action: 'rss_test_tags' },
+                    success: function(res) {
+                        if (res.success) {
+                            alert('✅ ' + res.data);
+                        } else {
+                            alert('❌ ' + res.data);
+                        }
+                    },
+                    complete: function() {
+                        btn.prop('disabled', false).text('🏷️ TEST TAG CREATION');
                     }
                 });
             });
@@ -288,10 +337,10 @@ class RSS_Generator_6arshid {
                 
                 $.each(items, function(i, item) {
                     html += '<tr class="item-row" data-index="' + i + '">';
-                    html += '<td class="item-title"><strong>' + escapeHtml(item.title) + '</strong></td>';
+                    html += '<td class="item-title"><strong>' + escapeHtml(item.title) + '</strong><br><span class="tags-preview">🏷️ AI will generate 8-12 CTR tags</span></td>';
                     html += '<td class="item-id">' + escapeHtml(item.id.substring(0, 30)) + '...</td>';
                     html += '<td>' + (item.date || 'Unknown') + '</td>';
-                    html += '<td><button class="generate-btn button button-primary" data-index="' + i + '">⚡ Generate Post</button></td>';
+                    html += '<td><button class="generate-btn button button-primary" data-index="' + i + '">⚡ Generate Post + Tags</button></td>';
                     html += '</tr>';
                 });
                 
@@ -309,7 +358,7 @@ class RSS_Generator_6arshid {
                 
                 $('#rss-progress').show();
                 $('.progress-bar').css('width', '30%').text('30%');
-                $('#rss-status').text('Generating content...');
+                $('#rss-status').text('Generating content with CTR tags...');
                 
                 $.ajax({
                     url: ajaxurl,
@@ -321,7 +370,7 @@ class RSS_Generator_6arshid {
                     success: function(res) {
                         if (res.success) {
                             $('.progress-bar').css('width', '100%').text('100%');
-                            $('#rss-status').html('✅ Post created! <a href="' + res.data.link + '" target="_blank">Edit Post</a>');
+                            $('#rss-status').html('✅ Post created with ' + res.data.tag_count + ' CTR tags! <a href="' + res.data.link + '" target="_blank">Edit Post</a>');
                             btn.closest('tr').css('background', '#dff0d8');
                             btn.text('✅ Done');
                         } else {
@@ -409,6 +458,25 @@ class RSS_Generator_6arshid {
             echo '<input type="text" name="rss_6arshid_options[site_name]" value="' . esc_attr($value) . '" class="regular-text">';
         }, 'rss-6arshid', 'main');
         
+        // ========== TAG GENERATION SETTINGS ==========
+        add_settings_field('enable_tags', 'Enable CTR Tags Generation', function() {
+            $value = isset($this->options['enable_tags']) ? $this->options['enable_tags'] : 1;
+            echo '<label><input type="checkbox" name="rss_6arshid_options[enable_tags]" value="1" ' . checked($value, 1, false) . '> Yes, generate high-CTR tags for each post</label>';
+        }, 'rss-6arshid', 'main');
+        
+        add_settings_field('tag_count', 'Number of Tags to Generate', function() {
+            $value = isset($this->options['tag_count']) ? $this->options['tag_count'] : 10;
+            echo '<input type="number" name="rss_6arshid_options[tag_count]" value="' . $value . '" min="5" max="20">';
+            echo '<p class="description">How many tags to create for each post</p>';
+        }, 'rss-6arshid', 'main');
+        
+        add_settings_field('tag_prompt', 'Tag Generation Prompt', function() {
+            $default = "Based on the title '{title}', generate {count} high-CTR (Click Through Rate) tags. Each tag should be a keyword or short phrase that people would search for. Format the tags as comma-separated list. Example: 'stranger things season 5, netflix series release date, stranger things plot, upside down explained, vecna backstory, eleven powers, dustin henderson, millie bobby brown, stranger things theories, when is stranger things coming out'";
+            $value = isset($this->options['tag_prompt']) ? $this->options['tag_prompt'] : $default;
+            echo '<textarea name="rss_6arshid_options[tag_prompt]" rows="5" class="large-text">' . esc_textarea($value) . '</textarea>';
+            echo '<p class="description">Use {title} and {count} in your prompt</p>';
+        }, 'rss-6arshid', 'main');
+        
         add_settings_field('title_prompt', 'Title Generator (Prompt)', function() {
             $default = "Original title: {title}\n\nPlease write an attractive and SEO-friendly title based on the original title above.";
             $value = isset($this->options['title_prompt']) ? $this->options['title_prompt'] : $default;
@@ -462,6 +530,11 @@ class RSS_Generator_6arshid {
             $value = isset($this->options['cron_secret']) ? $this->options['cron_secret'] : wp_hash('rss_cron_' . time());
             echo '<input type="text" value="' . esc_attr($value) . '" class="regular-text" readonly>';
         }, 'rss-6arshid', 'main');
+        
+        add_settings_field('enable_email_alerts', 'Enable Email Alerts', function() {
+            $value = isset($this->options['enable_email_alerts']) ? $this->options['enable_email_alerts'] : 1;
+            echo '<label><input type="checkbox" name="rss_6arshid_options[enable_email_alerts]" value="1" ' . checked($value, 1, false) . '> Yes, send email when API fails</label>';
+        }, 'rss-6arshid', 'main');
     }
     
     public function enqueue_scripts($hook) {
@@ -469,12 +542,71 @@ class RSS_Generator_6arshid {
     }
     
     /**
-     * FIX DUPLICATE DETECTION - Clean up the meta data properly
+     * TEST TAG CREATION - برای دیباگ
+     */
+    public function ajax_test_tags() {
+        $test_tags = array('test-tag-1', 'test-tag-2', 'test-tag-3');
+        
+        // Create a test post
+        $post_id = wp_insert_post(array(
+            'post_title' => 'TEST POST FOR TAGS',
+            'post_content' => 'This is a test post to verify tag creation.',
+            'post_status' => 'draft',
+            'post_type' => 'post'
+        ));
+        
+        if (is_wp_error($post_id)) {
+            wp_send_json_error('Could not create test post: ' . $post_id->get_error_message());
+        }
+        
+        // Try multiple methods to add tags
+        $methods_worked = array();
+        
+        // Method 1: wp_set_post_tags
+        $result1 = wp_set_post_tags($post_id, $test_tags, true);
+        $methods_worked[] = 'wp_set_post_tags: ' . ($result1 ? 'YES' : 'NO');
+        
+        // Method 2: wp_set_object_terms
+        $term_ids = array();
+        foreach ($test_tags as $tag_name) {
+            $term = term_exists($tag_name, 'post_tag');
+            if (!$term) {
+                $term = wp_insert_term($tag_name, 'post_tag');
+            }
+            if (!is_wp_error($term)) {
+                $term_ids[] = is_array($term) ? $term['term_id'] : $term;
+            }
+        }
+        $result2 = wp_set_object_terms($post_id, $term_ids, 'post_tag');
+        $methods_worked[] = 'wp_set_object_terms: ' . (!is_wp_error($result2) ? 'YES' : 'NO');
+        
+        // Method 3: Direct DB insert (as last resort)
+        global $wpdb;
+        foreach ($term_ids as $term_id) {
+            $wpdb->insert(
+                $wpdb->term_relationships,
+                array(
+                    'object_id' => $post_id,
+                    'term_taxonomy_id' => $term_id,
+                    'term_order' => 0
+                ),
+                array('%d', '%d', '%d')
+            );
+        }
+        $methods_worked[] = 'Direct DB: Attempted';
+        
+        // Clean up
+        wp_delete_post($post_id, true);
+        
+        wp_send_json_success("Tag test completed.\n" . implode("\n", $methods_worked));
+    }
+    
+    /**
+     * FIX DUPLICATE DETECTION
      */
     public function ajax_fix_duplicates() {
         global $wpdb;
         
-        // First, find all posts that have RSS meta
         $posts_with_meta = $wpdb->get_results("
             SELECT DISTINCT post_id 
             FROM $wpdb->postmeta 
@@ -484,9 +616,7 @@ class RSS_Generator_6arshid {
         $fixed = 0;
         $deleted = 0;
         
-        // For each post, make sure it has only ONE entry for each meta key
         foreach ($posts_with_meta as $post) {
-            // Check for duplicate _rss_item_id
             $ids = $wpdb->get_results($wpdb->prepare(
                 "SELECT meta_id FROM $wpdb->postmeta 
                 WHERE post_id = %d AND meta_key = '_rss_item_id' 
@@ -495,7 +625,6 @@ class RSS_Generator_6arshid {
             ));
             
             if (count($ids) > 1) {
-                // Keep the first one, delete the rest
                 $first = true;
                 foreach ($ids as $id) {
                     if ($first) {
@@ -508,7 +637,6 @@ class RSS_Generator_6arshid {
                 $fixed++;
             }
             
-            // Check for duplicate _rss_item_link
             $links = $wpdb->get_results($wpdb->prepare(
                 "SELECT meta_id FROM $wpdb->postmeta 
                 WHERE post_id = %d AND meta_key = '_rss_item_link' 
@@ -532,7 +660,7 @@ class RSS_Generator_6arshid {
         
         $this->log("Fixed duplicate detection: $fixed posts cleaned, $deleted duplicate meta entries removed");
         
-        wp_send_json_success("✅ Fixed $fixed posts, removed $deleted duplicate meta entries. Now each post has unique RSS ID tracking.");
+        wp_send_json_success("✅ Fixed $fixed posts, removed $deleted duplicate meta entries.");
     }
     
     public function ajax_test() {
@@ -581,7 +709,6 @@ class RSS_Generator_6arshid {
         $all_items = array();
         $duplicates = array();
         
-        // Get ALL existing RSS IDs from database - each one individually
         $existing_ids = $this->get_all_existing_rss_ids();
         
         $this->log("Found " . count($existing_ids) . " existing RSS IDs in database");
@@ -601,7 +728,6 @@ class RSS_Generator_6arshid {
                 $item_id = $item->get_id();
                 $item_title = $item->get_title();
                 
-                // Check if THIS SPECIFIC ID exists in database
                 if (in_array($item_id, $existing_ids)) {
                     $this->log("Duplicate found - ID: " . substr($item_id, 0, 40) . "...");
                     $duplicates[] = array(
@@ -629,9 +755,6 @@ class RSS_Generator_6arshid {
         ));
     }
     
-    /**
-     * Get ALL existing RSS IDs from database - each one individually
-     */
     private function get_all_existing_rss_ids() {
         global $wpdb;
         
@@ -645,7 +768,7 @@ class RSS_Generator_6arshid {
     public function ajax_generate() {
         $item = $_POST['item'];
         
-        // Check if THIS SPECIFIC ID exists (double-check)
+        // Check for duplicate
         $existing = get_posts(array(
             'meta_key' => '_rss_item_id',
             'meta_value' => $item['id'],
@@ -655,7 +778,7 @@ class RSS_Generator_6arshid {
         ));
         
         if (!empty($existing)) {
-            wp_send_json_error('This specific article has already been processed (ID: ' . substr($item['id'], 0, 30) + '...)');
+            wp_send_json_error('This article has already been processed');
         }
         
         // Generate new title
@@ -668,6 +791,27 @@ class RSS_Generator_6arshid {
         $content = $this->generate_content($item['title'], $item['desc']);
         if (!$content) {
             $content = "<p>Content for " . $item['title'] . "</p>";
+            
+            if (!empty($this->options['enable_email_alerts'])) {
+                $this->send_error_email('Content Generation Failed', 'DeepSeek API returned no content for title: ' . $item['title']);
+            }
+        }
+        
+        // ========== GENERATE CTR TAGS (ULTIMATE FIX) ==========
+        $tag_names = array();
+        $tag_count = 0;
+        
+        if (!empty($this->options['enable_tags'])) {
+            $tags_string = $this->generate_ctr_tags($item['title']);
+            if (!empty($tags_string)) {
+                // Convert comma-separated string to array and clean up
+                $tag_names = array_map('trim', explode(',', $tags_string));
+                $tag_names = array_filter($tag_names);
+                $tag_names = array_slice($tag_names, 0, $this->options['tag_count'] ?: 10);
+                $tag_count = count($tag_names);
+                
+                $this->log("Generated " . $tag_count . " tags: " . implode(', ', $tag_names));
+            }
         }
         
         // Split into paragraphs
@@ -718,7 +862,9 @@ class RSS_Generator_6arshid {
         $seo_title = $this->generate_seo_title($new_title);
         $post_slug = sanitize_title($new_title);
         
-        // Create post
+        // ========== ULTIMATE TAG ADDITION - MULTIPLE METHODS ==========
+        
+        // First create the post
         $post_id = wp_insert_post(array(
             'post_title' => $new_title,
             'post_content' => $final_html,
@@ -734,6 +880,8 @@ class RSS_Generator_6arshid {
                 '_generated_by' => '6arshid_RSS_Generator',
                 '_youtube_video_id' => $youtube_id,
                 '_image_count' => count($image_urls),
+                '_generated_tags' => implode(',', $tag_names),
+                '_tag_count' => $tag_count,
                 '_yoast_wpseo_title' => $seo_title,
                 '_yoast_wpseo_metadesc' => $meta_description,
                 'seo_title' => $seo_title,
@@ -745,6 +893,65 @@ class RSS_Generator_6arshid {
             wp_send_json_error($post_id->get_error_message());
         }
         
+        // ========== METHOD 1: wp_set_post_tags ==========
+        if (!empty($tag_names)) {
+            $result1 = wp_set_post_tags($post_id, $tag_names, true);
+            $this->log("Method 1 (wp_set_post_tags) result: " . ($result1 ? 'SUCCESS' : 'FAILED'));
+        }
+        
+        // ========== METHOD 2: wp_set_object_terms ==========
+        if (!empty($tag_names)) {
+            // First ensure all tags exist as terms
+            $term_ids = array();
+            foreach ($tag_names as $tag_name) {
+                $term = term_exists($tag_name, 'post_tag');
+                if (!$term) {
+                    $term = wp_insert_term($tag_name, 'post_tag');
+                }
+                if (!is_wp_error($term)) {
+                    $term_ids[] = is_array($term) ? $term['term_id'] : $term;
+                }
+            }
+            
+            if (!empty($term_ids)) {
+                $result2 = wp_set_object_terms($post_id, $term_ids, 'post_tag');
+                $this->log("Method 2 (wp_set_object_terms) result: " . (!is_wp_error($result2) ? 'SUCCESS' : 'FAILED'));
+            }
+        }
+        
+        // ========== METHOD 3: Direct database insert (nuclear option) ==========
+        if (!empty($term_ids)) {
+            global $wpdb;
+            foreach ($term_ids as $term_id) {
+                // Check if relationship already exists
+                $exists = $wpdb->get_var($wpdb->prepare(
+                    "SELECT COUNT(*) FROM $wpdb->term_relationships WHERE object_id = %d AND term_taxonomy_id = %d",
+                    $post_id,
+                    $term_id
+                ));
+                
+                if (!$exists) {
+                    $wpdb->insert(
+                        $wpdb->term_relationships,
+                        array(
+                            'object_id' => $post_id,
+                            'term_taxonomy_id' => $term_id,
+                            'term_order' => 0
+                        ),
+                        array('%d', '%d', '%d')
+                    );
+                }
+            }
+            
+            // Clean term cache
+            wp_cache_delete($post_id, 'post_tag_relationships');
+            $this->log("Method 3 (Direct DB): Attempted");
+        }
+        
+        // Verify tags were added
+        $saved_tags = wp_get_post_tags($post_id, array('fields' => 'names'));
+        $this->log("Final verification - Tags on post: " . implode(', ', $saved_tags));
+        
         // Add images
         if ($post_id && !empty($image_urls)) {
             foreach ($image_urls as $index => $image_url) {
@@ -753,13 +960,100 @@ class RSS_Generator_6arshid {
         }
         
         wp_send_json_success(array(
-            'link' => get_edit_post_link($post_id)
+            'link' => get_edit_post_link($post_id),
+            'tag_count' => count($saved_tags),
+            'tags' => implode(', ', $saved_tags)
         ));
+    }
+    
+    /**
+     * Generate CTR tags using DeepSeek
+     */
+    private function generate_ctr_tags($title) {
+        if (empty($this->options['deepseek_api']) || empty($this->options['enable_tags'])) {
+            $this->log("Tag generation skipped: API key or enable_tags not set");
+            return '';
+        }
+        
+        $tag_count = isset($this->options['tag_count']) ? $this->options['tag_count'] : 10;
+        $tag_prompt = isset($this->options['tag_prompt']) ? $this->options['tag_prompt'] : '';
+        
+        if (empty($tag_prompt)) {
+            $tag_prompt = "Based on the title '{title}', generate {count} high-CTR tags. Format as comma-separated list.";
+        }
+        
+        $prompt = str_replace('{title}', $title, $tag_prompt);
+        $prompt = str_replace('{count}', $tag_count, $prompt);
+        
+        $this->log("Generating CTR tags for: $title");
+        
+        $response = wp_remote_post('https://api.deepseek.com/chat/completions', array(
+            'headers' => array(
+                'Authorization' => 'Bearer ' . $this->options['deepseek_api'],
+                'Content-Type' => 'application/json'
+            ),
+            'body' => json_encode(array(
+                'model' => 'deepseek-chat',
+                'messages' => array(
+                    array('role' => 'system', 'content' => 'You are an SEO expert. Generate high-CTR tags. Return only comma-separated tags. No explanations.'),
+                    array('role' => 'user', 'content' => $prompt)
+                ),
+                'temperature' => 0.7,
+                'max_tokens' => 300
+            )),
+            'timeout' => 30
+        ));
+        
+        if (is_wp_error($response)) {
+            $error_msg = $response->get_error_message();
+            $this->log("Tag generation error: " . $error_msg);
+            
+            if (!empty($this->options['enable_email_alerts'])) {
+                $this->send_error_email('Tag Generation API Error', $error_msg);
+            }
+            
+            return $this->get_fallback_tags($title);
+        }
+        
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code != 200) {
+            $this->log("Tag generation HTTP error: $code");
+            
+            if (!empty($this->options['enable_email_alerts'])) {
+                $this->send_error_email('Tag Generation HTTP Error', 'Status code: ' . $code);
+            }
+            
+            return $this->get_fallback_tags($title);
+        }
+        
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+        
+        if (isset($body['choices'][0]['message']['content'])) {
+            $tags = trim($body['choices'][0]['message']['content']);
+            $this->log("Generated tags: $tags");
+            return $tags;
+        }
+        
+        $this->log("Tag generation failed: Invalid response");
+        return $this->get_fallback_tags($title);
+    }
+    
+    /**
+     * Fallback tags if API fails
+     */
+    private function get_fallback_tags($title) {
+        $words = explode(' ', $title);
+        $tags = array_slice($words, 0, 5);
+        $tags = array_map('trim', $tags);
+        $tags = array_filter($tags);
+        
+        $this->log("Using fallback tags: " . implode(', ', $tags));
+        return implode(', ', $tags);
     }
     
     public function ajax_cron_run() {
         $count = $this->run_cron();
-        wp_send_json_success("✅ $count new posts created");
+        wp_send_json_success("✅ $count new posts created with CTR tags");
     }
     
     public function ajax_view_log() {
@@ -776,14 +1070,18 @@ class RSS_Generator_6arshid {
         $created = 0;
         $skipped = 0;
         
-        // Get ALL existing IDs
         $existing_ids = $this->get_all_existing_rss_ids();
         
         foreach ($urls as $url) {
             if ($created >= $max) break;
             
             $rss = fetch_feed($url);
-            if (is_wp_error($rss)) continue;
+            if (is_wp_error($rss)) {
+                if (!empty($this->options['enable_email_alerts'])) {
+                    $this->send_error_email('RSS Fetch Failed', $url . ' - ' . $rss->get_error_message());
+                }
+                continue;
+            }
             
             $items = $rss->get_items(0, 20);
             
@@ -792,7 +1090,6 @@ class RSS_Generator_6arshid {
                 
                 $item_id = $item->get_id();
                 
-                // Check THIS SPECIFIC ID
                 if (in_array($item_id, $existing_ids)) {
                     $skipped++;
                     continue;
@@ -815,6 +1112,11 @@ class RSS_Generator_6arshid {
         }
         
         $this->log("Cron finished - Created: $created, Skipped: $skipped");
+        
+        if (!empty($this->options['enable_email_alerts']) && $created > 0) {
+            $this->send_error_email('Cron Job Summary', "Created $created new posts, skipped $skipped duplicates.");
+        }
+        
         return $created;
     }
     
@@ -822,7 +1124,15 @@ class RSS_Generator_6arshid {
         $new_title = $this->generate_new_title($data['title']);
         $content = $this->generate_content($data['title'], $data['desc']);
         
-        // ... (same content building as ajax_generate) ...
+        // Generate tags for cron too
+        $tag_names = array();
+        if (!empty($this->options['enable_tags'])) {
+            $tags_string = $this->generate_ctr_tags($data['title']);
+            if (!empty($tags_string)) {
+                $tag_names = array_map('trim', explode(',', $tags_string));
+                $tag_names = array_filter($tag_names);
+            }
+        }
         
         $post_id = wp_insert_post(array(
             'post_title' => $new_title ?: $data['title'],
@@ -834,6 +1144,28 @@ class RSS_Generator_6arshid {
                 '_rss_item_link' => $data['link']
             )
         ));
+        
+        // Ultimate tag addition for cron too
+        if ($post_id && !empty($tag_names)) {
+            // Method 1
+            wp_set_post_tags($post_id, $tag_names, true);
+            
+            // Method 2
+            $term_ids = array();
+            foreach ($tag_names as $tag_name) {
+                $term = term_exists($tag_name, 'post_tag');
+                if (!$term) {
+                    $term = wp_insert_term($tag_name, 'post_tag');
+                }
+                if (!is_wp_error($term)) {
+                    $term_ids[] = is_array($term) ? $term['term_id'] : $term;
+                }
+            }
+            
+            if (!empty($term_ids)) {
+                wp_set_object_terms($post_id, $term_ids, 'post_tag');
+            }
+        }
         
         return $post_id;
     }
@@ -1002,7 +1334,20 @@ class RSS_Generator_6arshid {
             'timeout' => 90
         ));
         
-        if (is_wp_error($response)) return false;
+        if (is_wp_error($response)) {
+            if (!empty($this->options['enable_email_alerts'])) {
+                $this->send_error_email('DeepSeek Content Generation Failed', $response->get_error_message());
+            }
+            return false;
+        }
+        
+        $code = wp_remote_retrieve_response_code($response);
+        if ($code != 200) {
+            if (!empty($this->options['enable_email_alerts'])) {
+                $this->send_error_email('DeepSeek HTTP Error', 'Status code: ' . $code);
+            }
+            return false;
+        }
         
         $body = json_decode(wp_remote_retrieve_body($response), true);
         return isset($body['choices'][0]['message']['content']) ? $body['choices'][0]['message']['content'] : false;

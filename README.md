@@ -64,6 +64,4 @@ Perfect for:
 - ✅ Test connection button
 - ✅ View logs in admin panel
 
----
 
-## 🎯 How It Works
